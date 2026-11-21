@@ -1,0 +1,51 @@
+name: Assemble art pack
+
+on:
+  push:
+    paths:
+      - "public/art/_pack/_chunks/READY"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble part-XX.b64 from chunks
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          root = Path("public/art/_pack")
+          chunks = root / "_chunks"
+          assert chunks.is_dir(), "missing _chunks"
+          written = []
+          for part_dir in sorted(p for p in chunks.iterdir() if p.is_dir()):
+              xx = part_dir.name
+              files = sorted(part_dir.glob("*.txt"), key=lambda p: int(p.stem))
+              assert files, f"no chunks for {xx}"
+              content = "".join(f.read_text() for f in files)
+              out = root / f"part-{xx}.b64"
+              out.write_text(content)
+              written.append((out.name, len(content)))
+              print(f"wrote {out} {len(content)}")
+          print("total", len(written))
+          expected = {f"{i:02d}" for i in range(70)}
+          got = {p.name for p in chunks.iterdir() if p.is_dir()}
+          missing = sorted(expected - got)
+          if missing:
+              raise SystemExit(f"missing chunk dirs: {missing}")
+          PY
+      - name: Commit and push assembled parts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/art/_pack/part-*.b64
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Assemble all art pack parts"
+          git push
