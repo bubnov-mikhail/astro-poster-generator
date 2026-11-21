@@ -1,0 +1,39 @@
+name: Import art pack
+
+on:
+  push:
+    paths:
+      - ".github/workflows/import-art-pack.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download and extract art pack
+        run: |
+          set -euo pipefail
+          URL='https://tmpfiles.org/dl/1795283427.8074d10f33f2b217/w8ArbqujPIpZ/art-pack.tar.gz'
+          curl -fsSL -o /tmp/art-pack.tar.gz "$URL"
+          echo '21b30438d04ec71b3c73be1225abcfd37d8634548cb9c2279047ce4a76dda420  /tmp/art-pack.tar.gz' | sha256sum -c
+          tar -xzf /tmp/art-pack.tar.gz -C .
+
+      - name: Commit pack files and clean probes
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f --ignore-unmatch public/art/_pack/.probe-* || true
+          git add public/art/_pack/manifest.json public/art/_pack/part-*.b64 \
+            scripts/decode-assets.mjs scripts/decode-lock.mjs
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+            exit 0
+          fi
+          git commit -m 'Add art pack parts 00-69 and decode scripts'
+          git push
