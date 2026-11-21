@@ -26,6 +26,10 @@
 ## Запуск
 
 ```bash
+git clone https://github.com/bubnov-mikhail/astro-poster-generator.git
+cd astro-poster-generator
+node scripts/decode-lock.mjs      # восстановить package-lock.json
+node scripts/decode-assets.mjs    # распаковать JPG из public/art/_pack
 npm install
 npm run dev
 ```
