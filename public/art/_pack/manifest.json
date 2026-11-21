@@ -1,0 +1,16 @@
+{
+  "parts": 70,
+  "algorithm": "zlib+base64",
+  "raw_bytes": 2392581,
+  "zlib_bytes": 2356900,
+  "files": [
+    "public/art/full-moon.jpg",
+    "public/art/moscow-evening-sky.jpg",
+    "public/art/planets/jupiter.jpg",
+    "public/art/planets/mars.jpg",
+    "public/art/planets/mercury.jpg",
+    "public/art/planets/saturn.jpg",
+    "public/art/planets/venus.jpg",
+    "public/art/solar-system-center.jpg"
+  ]
+}
