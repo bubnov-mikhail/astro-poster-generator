@@ -1,39 +1,58 @@
-name: Import art pack
-
+name: Import art pack parts
 on:
   push:
     paths:
-      - ".github/workflows/import-art-pack.yml"
+      - "public/art/_pack/.import-url"
   workflow_dispatch:
-
-permissions:
-  contents: write
-
 jobs:
   import:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Download and extract art pack
+        with:
+          fetch-depth: 0
+      - name: Download and extract pack
         run: |
           set -euo pipefail
-          URL='https://tmpfiles.org/dl/1795283427.8074d10f33f2b217/w8ArbqujPIpZ/art-pack.tar.gz'
-          curl -fsSL -o /tmp/art-pack.tar.gz "$URL"
-          echo '21b30438d04ec71b3c73be1225abcfd37d8634548cb9c2279047ce4a76dda420  /tmp/art-pack.tar.gz' | sha256sum -c
-          tar -xzf /tmp/art-pack.tar.gz -C .
-
-      - name: Commit pack files and clean probes
+          URL=$(tr -d '[:space:]' < public/art/_pack/.import-url)
+          echo "Fetching $URL"
+          curl -fsSL "$URL" -o /tmp/art-pack.tgz
+          mkdir -p /tmp/art-pack-extract
+          tar -xzf /tmp/art-pack.tgz -C /tmp/art-pack-extract
+          ls -la /tmp/art-pack-extract
+          mkdir -p public/art/_pack
+          cp /tmp/art-pack-extract/part-*.b64 public/art/_pack/
+      - name: Commit each part separately
         run: |
           set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm -f --ignore-unmatch public/art/_pack/.probe-* || true
-          git add public/art/_pack/manifest.json public/art/_pack/part-*.b64 \
-            scripts/decode-assets.mjs scripts/decode-lock.mjs
-          if git diff --cached --quiet; then
-            echo 'No changes to commit'
-            exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in $(seq 35 69); do
+            n=$(printf '%02d' "$i")
+            f="public/art/_pack/part-${n}.b64"
+            if [ ! -f "$f" ]; then
+              echo "missing $f"
+              continue
+            fi
+            # Skip if already full-size on HEAD and identical
+            if git cat-file -e "HEAD:$f" 2>/dev/null; then
+              oldsize=$(git cat-file -s "HEAD:$f")
+              newsize=$(wc -c < "$f")
+              if [ "$oldsize" = "$newsize" ] && git diff --quiet HEAD -- "$f"; then
+                echo "skip identical $f"
+                continue
+              fi
+            fi
+            git add "$f"
+            git commit -m "Add art pack part ${n}"
+            echo "committed $f"
+          done
+          # remove trigger so re-runs need a new URL push
+          if [ -f public/art/_pack/.import-url ]; then
+            git rm -f public/art/_pack/.import-url || rm -f public/art/_pack/.import-url
+            git add -A public/art/_pack/.import-url 2>/dev/null || true
+            git commit -m "Clear art pack import trigger" || true
           fi
-          git commit -m 'Add art pack parts 00-69 and decode scripts'
-          git push
+          git push origin HEAD:main
